@@ -103,5 +103,36 @@
         "动态运镜采用{v}"
       ]
     }
+  },
+  "copy": {
+    "description": "自媒体口播旁白文案，四类风格随机选用",
+    "styles": {
+      "悬念钩子": [
+        "你见过{scene}里的{subject}吗？",
+        "{scene}深处，{subject}正在等你发现。",
+        "别眨眼，{subject}出现在{scene}的那一刻，{tone}全变了。"
+      ],
+      "情绪共鸣": [
+        "在{tone}里，{subject}与{scene}安静地对望。",
+        "{scene}的风吹过，{subject}的身影被{tone}拉得很长。",
+        "有些画面只属于{culture}，{subject}站在那里，像等了很久。"
+      ],
+      "反差设问": [
+        "如果{subject}闯进{scene}，会发生什么？",
+        "当{style}遇上{scene}，{subject}成了唯一的答案。",
+        "谁说{subject}不能出现在{scene}？"
+      ],
+      "干货描述": [
+        "{style}画面：{subject}置身{scene}，{tone}铺满镜头。",
+        "本期画面：{subject}配{scene}，走的是{culture}的调子。",
+        "{subject}在{scene}中，以{style}呈现，{tone}定调。"
+      ]
+    },
+    "tail": [
+      "这一幕值得你停下来看三秒。",
+      "完整画面就在下一帧。",
+      "看到最后，会有惊喜。",
+      "别忘了看完再走。"
+    ]
   }
 }

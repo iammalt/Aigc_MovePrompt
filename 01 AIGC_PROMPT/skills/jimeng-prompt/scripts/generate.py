@@ -41,6 +41,7 @@ COMPACT_RULES = (
     (re.compile(r"^-?n(\d{1,3})$"), lambda m: ["-n", m.group(1)]),
     (re.compile(r"^抽(\d{1,3})次?$"), lambda m: ["-n", m.group(1)]),
     (re.compile(r"^-?s(\d{1,3})$"), lambda m: ["-s", m.group(1)]),
+    (re.compile(r"^kon$"), lambda m: ["-kon"]),  # kon -> -kon（开启口播）
     (re.compile(r"^con$"), lambda m: ["-con"]),  # con -> -con（开启运镜）
 )
 
@@ -212,6 +213,24 @@ def render(values: dict, templates: dict, rng: random.Random, raw: bool, with_su
     return text
 
 
+def render_copy(values: dict, templates: dict, rng: random.Random) -> str:
+    """生成一句贴合当前画面的自媒体口播旁白文案（四类风格随机，无题材分轨）。"""
+    section = templates.get("copy") or {}
+    styles = section.get("styles") or {}
+    if not styles:
+        return ""
+    ctx = {
+        key: values.get(key) or ""
+        for key in ("subject", "style", "lens", "scene", "detail", "tone", "culture", "camera")
+    }
+    style_name = rng.choice(list(styles))
+    text = rng.choice(styles[style_name]).format(**ctx)
+    tails = section.get("tail") or []
+    if tails and rng.random() < 0.6:
+        text = f"{text}{rng.choice(tails).format(**ctx)}"
+    return text
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="即梦提示词随机组合生成器")
     parser.add_argument(
@@ -223,6 +242,7 @@ def main() -> int:
     parser.add_argument("-n", "--count", type=int, default=1, help="生成条数（默认 1）")
     parser.add_argument("-s", "--seconds", type=int, default=None, help="视频时长（秒），5-120；给值后输出视频提示词而非图片")
     parser.add_argument("-con", "--camera", action="store_true", help="开启运镜方式（默认不开启）；视频模式自动启用")
+    parser.add_argument("-kon", "--kon", action="store_true", help="开启自媒体口播文案（默认关闭）")
     parser.add_argument("--seed", type=int, default=None, help="随机种子，用于复现同一组组合")
     parser.add_argument("--raw", action="store_true", help="输出逗号拼接的原始形态")
     parser.add_argument("--no-suffix", action="store_true", help="不追加画质后缀")
@@ -360,7 +380,8 @@ def main() -> int:
     results = []
     for values in selected:
         prompt = render(values, theme_templates, rng, args.raw, not args.no_suffix, args.seconds)
-        results.append({"prompt": prompt, "penalty": judge.penalty(values), "values": values})
+        copy = "" if (args.raw or not args.kon) else render_copy(values, templates, rng)
+        results.append({"prompt": prompt, "copy": copy, "penalty": judge.penalty(values), "values": values})
 
     total_candidates = candidates * rounds
     worst = max(item["penalty"] for item in results) if results else 0
@@ -390,6 +411,8 @@ def main() -> int:
         if args.count > 1:
             print(f"方案 {index}/{args.count}")
         print(f"【{'视频提示词' if video_mode else '提示词'}】{item['prompt']}")
+        if item["copy"]:
+            print(f"【口播文案】{item['copy']}")
         subject_label = "随机主体" if auto_subject else "主体"
         pairs = [f"人物与服饰={item['values']['subject']}（{subject_label}）"]
         for key in PICK_KEYS:
