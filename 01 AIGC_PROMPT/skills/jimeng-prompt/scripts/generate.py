@@ -160,11 +160,12 @@ class Judge:
         return any(frozenset((a, b)) in self.pairs for a in tags_a for b in tags_b)
 
     def restrict_pools(
-        self, pools: dict, subject: str, minimum: int = 8, protected=("lens", "tone")
+        self, pools: dict, subject: str, minimum: int = 8, protected=("lens",)
     ) -> dict:
         """按主体题材做硬过滤：剔除与主体题材直接互斥的维度取值。
 
-        镜头与色调默认不过滤（它们大多中性，跨题材也不会读起来别扭）。
+        镜头默认不过滤（创意镜头跨题材也不会读起来别扭）；
+        色调参与过滤，避免"时光隧道的流光溢彩"这类科幻光效配古典主体。
         若过滤后某维度剩余条目过少，则回退原始池，避免抽不出足够方案。
         """
         if not self.enabled:
@@ -210,11 +211,18 @@ def render(values: dict, templates: dict, rng: random.Random, raw: bool, with_su
     text = text.strip(" ，,。.;；") + "。"
     if seconds:
         text = f"{text[:-1]}，视频时长约 {seconds} 秒。"
+    orientation = (templates.get("orientation") or "").strip(" ，,。")
+    if orientation and not raw:
+        text = f"{orientation}，{text}"
     return text
 
 
-def render_copy(values: dict, templates: dict, rng: random.Random) -> str:
-    """生成一句贴合当前画面的自媒体口播旁白文案（四类风格随机，无题材分轨）。"""
+def render_copy(values: dict, templates: dict, rng: random.Random, subject: str = None) -> str:
+    """生成一句贴合当前画面的自媒体口播旁白文案。
+
+    若主体命中 copy.themes 的关键词，则只在对应主题的风格池里抽（萌宠/美女各一套），
+    否则回退到全部风格。
+    """
     section = templates.get("copy") or {}
     styles = section.get("styles") or {}
     if not styles:
@@ -223,6 +231,15 @@ def render_copy(values: dict, templates: dict, rng: random.Random) -> str:
         key: values.get(key) or ""
         for key in ("subject", "style", "lens", "scene", "detail", "tone", "culture", "camera")
     }
+    themes = section.get("themes") or {}
+    if subject:
+        for theme in themes.values():
+            keywords = theme.get("keywords") or []
+            if any(k in subject for k in keywords):
+                restricted = {n: styles[n] for n in (theme.get("styles") or []) if n in styles}
+                if restricted:
+                    styles = restricted
+                break
     style_name = rng.choice(list(styles))
     text = rng.choice(styles[style_name]).format(**ctx)
     tails = section.get("tail") or []
@@ -323,7 +340,7 @@ def main() -> int:
 
     video_mode = args.seconds is not None
     use_camera = args.camera or video_mode
-    theme_templates = load_json(data_dir / "templates.json") if video_mode else templates
+    theme_templates = templates.get("video") if video_mode else templates
 
     if video_mode:
         if auto_subject:
@@ -380,7 +397,7 @@ def main() -> int:
     results = []
     for values in selected:
         prompt = render(values, theme_templates, rng, args.raw, not args.no_suffix, args.seconds)
-        copy = "" if (args.raw or not args.kon) else render_copy(values, templates, rng)
+        copy = "" if (args.raw or not args.kon) else render_copy(values, templates, rng, values.get("subject"))
         results.append({"prompt": prompt, "copy": copy, "penalty": judge.penalty(values), "values": values})
 
     total_candidates = candidates * rounds
