@@ -40,21 +40,39 @@ COMPACT_RULES = (
     (re.compile(r"^-?h(\d{1,2})$"), lambda m: ["-hl", m.group(1)]),
     (re.compile(r"^-?n(\d{1,3})$"), lambda m: ["-n", m.group(1)]),
     (re.compile(r"^抽(\d{1,3})次?$"), lambda m: ["-n", m.group(1)]),
-    (re.compile(r"^(\d{1,3})$"), lambda m: ["-n", m.group(1)]),  # 独立出现的数字视为条数
+    (re.compile(r"^-?s(\d{1,3})$"), lambda m: ["-s", m.group(1)]),
+    (re.compile(r"^con$"), lambda m: ["-con"]),  # con -> -con（开启运镜）
 )
 
 
 def normalize_argv(argv):
     """把紧凑写法展开成标准参数，例如 h8 n3 修仙者 -> -hl 8 -n 3 修仙者。"""
+    # 需要紧跟取值的标准参数（展开后形态）：独立数字若紧接它们，则交给 argparse 处理，
+    # 避免 "-n 5" 里的 5 被误判为条数。
+    VALUE_OPTIONS = {"-n", "-hl", "-s", "--count", "--hl", "--seconds", "--seed",
+                     "--candidates", "--retries"}
     expanded = []
+    prev = None
     for token in argv:
+        matched = False
         for pattern, convert in COMPACT_RULES:
             match = pattern.match(token)
             if match:
-                expanded.extend(convert(match))
+                parts = convert(match)
+                expanded.extend(parts)
+                prev = parts[-1]
+                matched = True
                 break
-        else:
-            expanded.append(token)
+        if not matched:
+            # 独立数字规则：仅当上一个参数不是"需要取值"的参数时才展开为 -n，
+            # 否则交给 argparse 作为上一个参数（如 -n / -hl / -s）的值。
+            is_standalone_digit = bool(re.fullmatch(r"\d{1,3}", token))
+            if is_standalone_digit and prev not in VALUE_OPTIONS:
+                expanded.extend(["-n", token])
+                prev = "-n"
+            else:
+                expanded.append(token)
+                prev = token
     return expanded
 
 
@@ -163,8 +181,8 @@ class Judge:
         return restricted
 
 
-def render(values: dict, templates: dict, rng: random.Random, raw: bool, with_suffix: bool) -> str:
-    """把各维度取值渲染成一段自然语言提示词。"""
+def render(values: dict, templates: dict, rng: random.Random, raw: bool, with_suffix: bool, seconds: int = None) -> str:
+    """把各维度取值渲染成一段自然语言提示词；seconds 非空时输出视频版。"""
     order = templates.get("order") or PICK_KEYS
 
     if raw:
@@ -188,7 +206,10 @@ def render(values: dict, templates: dict, rng: random.Random, raw: bool, with_su
         if suffix:
             text = f"{text}，{suffix}"
 
-    return text.strip(" ，,。.;；") + "。"
+    text = text.strip(" ，,。.;；") + "。"
+    if seconds:
+        text = f"{text[:-1]}，视频时长约 {seconds} 秒。"
+    return text
 
 
 def main() -> int:
@@ -200,7 +221,8 @@ def main() -> int:
         help="画面主体，如：一只羊 / 一个东方美女；省略时自动从「人物与服饰」维度随机抽取",
     )
     parser.add_argument("-n", "--count", type=int, default=1, help="生成条数（默认 1）")
-    parser.add_argument("--camera", action="store_true", help="额外随机抽取一条运镜（默认关闭）")
+    parser.add_argument("-s", "--seconds", type=int, default=None, help="视频时长（秒），5-120；给值后输出视频提示词而非图片")
+    parser.add_argument("-con", "--camera", action="store_true", help="开启运镜方式（默认不开启）；视频模式自动启用")
     parser.add_argument("--seed", type=int, default=None, help="随机种子，用于复现同一组组合")
     parser.add_argument("--raw", action="store_true", help="输出逗号拼接的原始形态")
     parser.add_argument("--no-suffix", action="store_true", help="不追加画质后缀")
@@ -235,6 +257,8 @@ def main() -> int:
 
     if args.count < 1:
         sys.exit("生成条数必须 >= 1")
+    if args.seconds is not None and not (5 <= args.seconds <= 120):
+        sys.exit("视频秒数必须在 5-120 之间")
 
     labels = {dim["key"]: dim["label"] for dim in jimeng["dimensions"]}
     pools = {
@@ -271,6 +295,23 @@ def main() -> int:
 
     camera_pool = []
     if args.camera:
+        camera_pool = (load_json(data_dir / "camera_moves.json") or {}).get("items", [])
+        if not camera_pool:
+            sys.exit("运镜数据为空，请重新执行 build_data.py")
+        if args.count > len(camera_pool):
+            sys.exit(f"运镜候选仅 {len(camera_pool)} 条，不足以支撑 {args.count} 条互不重复的输出")
+
+    video_mode = args.seconds is not None
+    use_camera = args.camera or video_mode
+    theme_templates = load_json(data_dir / "templates.json") if video_mode else templates
+
+    if video_mode:
+        if auto_subject:
+            sys.exit("视频模式需显式给出画面主体")
+        if not theme_templates:
+            sys.exit("缺少视频模板 templates.json")
+
+    if use_camera:
         camera_pool = (load_json(data_dir / "camera_moves.json") or {}).get("items", [])
         if not camera_pool:
             sys.exit("运镜数据为空，请重新执行 build_data.py")
@@ -318,7 +359,7 @@ def main() -> int:
 
     results = []
     for values in selected:
-        prompt = render(values, templates, rng, args.raw, not args.no_suffix)
+        prompt = render(values, theme_templates, rng, args.raw, not args.no_suffix, args.seconds)
         results.append({"prompt": prompt, "penalty": judge.penalty(values), "values": values})
 
     total_candidates = candidates * rounds
@@ -330,6 +371,8 @@ def main() -> int:
             "auto_subject": auto_subject,
             "count": args.count,
             "camera": args.camera,
+            "mode": "video" if video_mode else "image",
+            "seconds": args.seconds,
             "seed": args.seed,
             "hl": settings["hl"],
             "settings": settings,
@@ -346,7 +389,7 @@ def main() -> int:
     for index, item in enumerate(results, start=1):
         if args.count > 1:
             print(f"方案 {index}/{args.count}")
-        print(f"【提示词】{item['prompt']}")
+        print(f"【{'视频提示词' if video_mode else '提示词'}】{item['prompt']}")
         subject_label = "随机主体" if auto_subject else "主体"
         pairs = [f"人物与服饰={item['values']['subject']}（{subject_label}）"]
         for key in PICK_KEYS:
