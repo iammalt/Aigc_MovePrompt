@@ -99,17 +99,17 @@
     }
   },
   "copy": {
-    "description": "自媒体口播旁白文案，四类风格随机选用；可用 --no-copy 关闭",
+    "description": "自媒体口播旁白文案，六类风格随机选用；可用 --no-copy 关闭",
     "styles": {
       "悬念钩子": [
-        "你见过{scene}里的{subject}吗？",
+        "你见过{subject}在{scene}里吗？",
         "{scene}深处，{subject}正在等你发现。",
-        "别眨眼，{subject}出现在{scene}的那一刻，{tone}全变了。"
+        "别眨眼，当{subject}出现在{scene}，{tone}全变了。"
       ],
       "情绪共鸣": [
-        "在{tone}里，{subject}与{scene}安静地对望。",
-        "{scene}的风吹过，{subject}的身影被{tone}拉得很长。",
-        "有些画面只属于{culture}，{subject}站在那里，像等了很久。"
+        "沐浴在{tone}中，{subject}与{scene}静静对望。",
+        "风从{scene}吹过，{subject}的身影被{tone}拉得很长。",
+        "{subject}在{scene}待了很久，像在等一个旧朋友。"
       ],
       "反差设问": [
         "如果{subject}闯进{scene}，会发生什么？",
@@ -122,13 +122,13 @@
         "{subject}在{scene}中，以{style}呈现，{tone}定调。"
       ],
       "宠物吐槽": [
-        "{subject}今天又用{tone}的眼神提醒我：该加饭了。",
+        "{subject}今天那副眼神，分明在说：该加饭了。",
         "别被{style}骗了，{subject}心里想的是——这届铲屎官不太行。",
         "{subject}的独白：{scene}虽好，但比不上饭碗满满。",
-        "据{subject}观察，{tone}的时候，人类最舍不得划走。"
+        "据{subject}观察，人类最舍不得划走的，往往是它打盹的瞬间。"
       ],
       "氛围种草": [
-        "这一帧的{culture}氛围，刚好配得上{subject}的{style}。",
+        "这帧{culture}氛围，刚好衬得起{subject}的{style}。",
         "{subject}在{scene}里，{tone}，是今天最想收藏的画面。",
         "把{subject}的{style}调成{scene}滤镜，高级感就出来了。",
         "{subject}配{scene}，{tone}，随手一截都是壁纸。"

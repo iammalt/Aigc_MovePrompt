@@ -325,6 +325,12 @@ def main() -> int:
         sys.exit(f"生成条数 {args.count} 超过单维度候选上限 {base_limit}，请降低数量")
 
     hl = 0 if args.no_consistency else args.hl
+
+    # -h10（即 -hl 10）触发热力升级模式：自动运镜必含 + 最严筛选；0-9 维持原模式
+    drama_mode = (hl == 10) and (not args.no_consistency)
+    if drama_mode:
+        args.camera = True
+
     settings = resolve_level(hl, args.count, base_limit, args.candidates, args.retries)
 
     rng = random.Random(args.seed)
@@ -409,6 +415,7 @@ def main() -> int:
             "auto_subject": auto_subject,
             "count": args.count,
             "camera": args.camera,
+            "drama_mode": drama_mode,
             "mode": "video" if video_mode else "image",
             "seconds": args.seconds,
             "seed": args.seed,
@@ -422,6 +429,10 @@ def main() -> int:
 
     if auto_subject:
         print("【主体】未提供主体，已随机取自「人物与服饰」维度（同批次内不重复）。")
+        print()
+
+    if drama_mode:
+        print("【模式】-h10 已触发升级模式：运镜必含 + 最严题材筛选（0-9 为常规模式）。")
         print()
 
     for index, item in enumerate(results, start=1):

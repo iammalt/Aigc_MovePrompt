@@ -7,7 +7,7 @@ description: >-
   支持一次生成 N 条互不重复的方案、可选叠加运镜、可用 seed 复现同一组组合；
   不加 -s 输出图片提示词，加 -s 5-120 则输出对应秒数的视频提示词（自动带运镜与动态句式）；
   加 -con 可开启运镜方式（默认不开启）；
-  内置题材一致性校验，可用 -hl 0-10 调节严谨度（0 纯随机不检查，10 最严谨，多次重抽直到协调）。
+  内置题材一致性校验，可用 -hl 0-10 调节严谨度（0 纯随机不检查；10 最严谨、自动进入运镜必含的升级模式，多次重抽直到协调）。
   当用户提到即梦、Dreamina、生图提示词、文生图 prompt、绘图提示词、随机组合提示词、AI 绘画/AIGC 出图，
   或提出"给一只羊来几个不同的画面方案""帮我出几个东方美女的提示词"这类需要灵感组合的请求时触发，
   也兼容 /jimeng-prompt 显式调用。
@@ -31,7 +31,7 @@ python <skill-dir>/scripts/generate.py "修仙者" -n 3 -con           # 开启�
 python <skill-dir>/scripts/generate.py "一只羊" --seed 42        # 复现同一组组合
 python <skill-dir>/scripts/generate.py "一只羊" --raw            # 逗号拼接的原始形态
 python <skill-dir>/scripts/generate.py "一只羊" --no-suffix      # 去掉画质后缀
-python <skill-dir>/scripts/generate.py "修仙者" -hl 10           # 最严谨：反复重抽到完全协调为止
+python <skill-dir>/scripts/generate.py "修仙者" -hl 10           # 升级模式：运镜自动必含 + 最严筛选（无需再加 -con）
 python <skill-dir>/scripts/generate.py "修仙者" -hl 1            # 宽松：保留跨题材创意，只按打分选优
 python <skill-dir>/scripts/generate.py "修仙者" -hl 0            # 最松：纯随机，不检查题材
 python <skill-dir>/scripts/generate.py "修仙者" --no-consistency # 与 -hl 0 等价
@@ -52,7 +52,7 @@ python <skill-dir>/scripts/generate.py "一只羊" -n 3 --json      # 结构化�
 | `-kon, --kon` | 开启自媒体口播文案（**默认关闭**） |
 | `-s, --seconds` | 视频时长（秒），5-120；给值后输出视频提示词而非图片 |
 | `--seed` | 随机种子，用于复现 |
-| `-hl, --hl` | **严谨度等级 0-10**，默认 5。0 = 不检查纯随机，10 = 最严谨（题材硬过滤 + 大候选量 + 多轮重抽） |
+| `-hl, --hl` | **严谨度等级 0-10**，默认 5。0 = 不检查纯随机，10 = 最严谨（题材硬过滤 + 大候选量 + 多轮重抽）。**指定 10 时自动进入「升级模式」：运镜必含 + 最严筛选，无需再加 `-con`** |
 | `--raw` | 输出逗号拼接的原始词条形态（不推荐，作为兼容入口） |
 | `--no-suffix` | 不追加画质后缀「高清细节，电影级质感」 |
 | `--json` | 以 JSON 结构化输出，便于二次处理 |
@@ -211,6 +211,15 @@ python <skill-dir>/scripts/build_data.py --jimeng "D:/x/表.xlsx" --camera "D:/x
 | 8-10 | 开 | 开 | 96-120 | 8-10 | 最严谨：反复重抽直到找到协调组合 |
 
 候选数还会被当前维度池的上限裁剪；`-hl` 推导出的值可被 `--candidates` / `--retries` 覆盖。
+
+### 升级模式（`-hl 10` 专属）
+
+当严谨度设为 **10** 时，skill 自动进入「升级模式」：
+
+- **运镜必含**：无需再加 `-con` / `--camera`，结果自动叠加 1 条随机运镜（专治画面无镜头运动、观感死板）；
+- **最严筛选**：题材硬过滤 + 大候选量（120）+ 多轮重抽（10 轮），直到抽到完全协调（评分 ≤ 0）的组合才停。
+
+`0-9` 维持原模式：运镜默认关闭（需 `-con` 显式开启），筛选强度随等级递增但不强制运镜。即 `-h10`（紧凑写法）等价于「最严筛选 + 运镜必含」的一键组合；若显式加 `--no-consistency` 则跳过升级模式，退回纯随机。
 
 想调整判断口径（例如去掉某条互斥关系、补充新的题材关键词），直接编辑 `data/consistency.json`，无需改代码。改完可用诊断脚本查看词条标签覆盖率：
 
